@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch a zkao scan of one commit, optionally wait for it, and report.
+# Launch a zkao scan of one commit; optionally wait for it and gate on it.
 #
 # Runs the published zkao CLI, so every call here is one the CLI documents.
 # The CLI prints JSON on stdout and progress on stderr; jq reads the former.
@@ -19,6 +19,11 @@ fail() {
   echo "::error::$1"
   exit 1
 }
+
+case "${INPUT_MODE}" in
+  launch|wait|gate) ;;
+  *) fail "Unknown mode '${INPUT_MODE}'. Use launch, wait, or gate." ;;
+esac
 
 # ---------------------------------------------------------------------------
 # Which zkao repository this GitHub repository is.
@@ -70,12 +75,75 @@ if [ -z "${branch}" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Which scan. A kind name maps to its builtin preset; anything else is passed
+# through as a preset ref. A diff scan is a quick look steered at the change:
+# the public API has no diff scope yet, so the changed files go in as guidance
+# on top of the repository's own.
+# ---------------------------------------------------------------------------
+scan="$(printf '%s' "${INPUT_SCAN}" | tr '[:upper:]' '[:lower:]')"
+preset=""
+diff_scan=0
+case "${scan}" in
+  quick-look|quicklook|"quick look") preset="builtin:Quick Look" ;;
+  deep-audit|deepaudit|"deep audit"|audit) preset="builtin:Deep Audit" ;;
+  diff|diff-scan) preset="builtin:Quick Look"; diff_scan=1 ;;
+  "") ;;
+  *) preset="${INPUT_SCAN}" ;;
+esac
+
+guidance_file="${INPUT_GUIDANCE_FILE}"
+if [ "${diff_scan}" -eq 1 ]; then
+  base="${INPUT_BASE}"
+  if [ -z "${base}" ]; then
+    case "${GITHUB_EVENT_NAME:-}" in
+      pull_request|pull_request_target)
+        base="$(jq -r '.pull_request.base.sha // empty' "${GITHUB_EVENT_PATH}")"
+        ;;
+      push)
+        base="$(jq -r '.before // empty' "${GITHUB_EVENT_PATH}")"
+        ;;
+    esac
+  fi
+  [ -n "${base}" ] || fail "A diff scan needs the commit the change is measured from. Pass the base input."
+  if [[ "${base}" =~ ^0+$ ]]; then
+    fail "This push created the branch, so there is no earlier commit to diff against. Pass the base input."
+  fi
+
+  compare="$(curl -sS --fail \
+    -H "Authorization: Bearer ${INPUT_GITHUB_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GITHUB_API_URL:-https://api.github.com}/repos/${GITHUB_REPOSITORY}/compare/${base}...${commit}?per_page=300")" \
+    || fail "Could not read the change ${base:0:12}...${commit:0:12} from GitHub."
+  changed_files="$(printf '%s' "${compare}" | jq -r '.files[]?.filename')"
+  commit_count="$(printf '%s' "${compare}" | jq -r '.total_commits // 0')"
+  if [ -z "${changed_files}" ]; then
+    fail "Nothing changed between ${base:0:12} and ${commit:0:12}, so there is nothing for a diff scan to read."
+  fi
+
+  guidance_file="${RUNNER_TEMP:-/tmp}/zkao-diff-guidance.md"
+  {
+    if [ -n "${INPUT_GUIDANCE_FILE}" ]; then
+      cat "${INPUT_GUIDANCE_FILE}"
+    else
+      # The repository's own guidance still applies underneath the scope: a
+      # per-scan guidance replaces it, so it is carried over by hand.
+      zkao guidance get "${repository_id}" | jq -r '.content // empty'
+    fi
+    printf '\n\n## Scope: the change between %s and %s\n\n' "${base:0:12}" "${commit:0:12}"
+    printf 'This scan is about the %s commit(s) added since %s. ' "${commit_count}" "${base:0:12}"
+    printf 'Only the files below changed. Read the rest of the repository as context for them, not as a target.\n\n'
+    printf '%s\n' "${changed_files}" | sed 's/^/- /'
+  } >"${guidance_file}"
+  echo "Diff scan: ${commit_count} commit(s), $(printf '%s\n' "${changed_files}" | wc -l | tr -d ' ') changed file(s) since ${base:0:12}."
+fi
+
+# ---------------------------------------------------------------------------
 # Launch.
 # ---------------------------------------------------------------------------
 args=(scans launch --repo "${repository_id}" --budget "${INPUT_BUDGET}" --commit "${commit}")
 [ -n "${branch}" ] && args+=(--branch "${branch}")
-[ -n "${INPUT_PRESET}" ] && args+=(--preset "${INPUT_PRESET}")
-[ -n "${INPUT_GUIDANCE_FILE}" ] && args+=(--guidance "${INPUT_GUIDANCE_FILE}")
+[ -n "${preset}" ] && args+=(--preset "${preset}")
+[ -n "${guidance_file}" ] && args+=(--guidance "${guidance_file}")
 if [ -n "${INPUT_AREAS}" ]; then
   IFS=',' read -r -a areas <<<"${INPUT_AREAS}"
   for area in "${areas[@]}"; do
@@ -88,17 +156,20 @@ launched="$(zkao "${args[@]}")"
 scan_id="$(printf '%s' "${launched}" | jq -r '.scanId // empty')"
 [ -n "${scan_id}" ] || fail "The launch returned no scan id: ${launched}"
 scan_url="${INPUT_BASE_URL%/}/projects/${ZKAO_PROJECT_ID}/scans/${scan_id}"
+label="${scan:-scan}"
+[ "${diff_scan}" -eq 1 ] && label="diff scan (a quick look steered at the change)"
 
 {
   echo "scan-id=${scan_id}"
   echo "scan-url=${scan_url}"
 } >>"${GITHUB_OUTPUT}"
-echo "Launched scan ${scan_id} of ${commit:0:12}: ${scan_url}"
+echo "Launched ${label} ${scan_id} of ${commit:0:12}: ${scan_url}"
 
-if [ "${INPUT_WAIT}" != "true" ]; then
+if [ "${INPUT_MODE}" = "launch" ]; then
   echo "status=QUEUED" >>"${GITHUB_OUTPUT}"
   if [ "${INPUT_SUMMARY}" = "true" ]; then
-    printf '## zkao scan launched\n\n[Scan %s](%s) of `%s` is queued.\n' "${scan_id}" "${scan_url}" "${commit:0:12}" >>"${GITHUB_STEP_SUMMARY}"
+    printf '## zkao scan launched\n\n[Scan %s](%s) of `%s` is queued: %s. The workflow does not wait for it.\n' \
+      "${scan_id}" "${scan_url}" "${commit:0:12}" "${label}" >>"${GITHUB_STEP_SUMMARY}"
   fi
   exit 0
 fi
@@ -106,8 +177,8 @@ fi
 # ---------------------------------------------------------------------------
 # Wait, then read the findings.
 # ---------------------------------------------------------------------------
-scan="$(zkao scans wait "${scan_id}" --timeout "${INPUT_TIMEOUT}")"
-status="$(printf '%s' "${scan}" | jq -r '.status // .scan.status // empty')"
+final="$(zkao scans wait "${scan_id}" --timeout "${INPUT_TIMEOUT}")"
+status="$(printf '%s' "${final}" | jq -r '.status // .scan.status // empty')"
 echo "status=${status}" >>"${GITHUB_OUTPUT}"
 
 if [ "${status}" != "COMPLETED" ]; then
@@ -168,10 +239,14 @@ if [ "${INPUT_SUMMARY}" = "true" ]; then
       printf '%s' "${open}" | jq -r --arg base "${INPUT_BASE_URL%/}" --arg project "${ZKAO_PROJECT_ID}" '
         def rank: {CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4}[.severity] // 5;
         sort_by(rank)[]
-        | "| \(.severity) | [ZK-\(.displayId) \(.title | gsub("\\|"; "\\\\|"))](\($base)/projects/\($project)/findings?finding=\(.id)) | `\(.location // "")` | \(.triageStatus) |"'
+        | "| \(.severity) | [ZK-\(.displayId) \(.title | gsub("\\|"; "\\|"))](\($base)/projects/\($project)/findings?finding=\(.id)) | `\(.location // "")` | \(.triageStatus) |"'
       printf '\n'
     fi
   } >>"${GITHUB_STEP_SUMMARY}"
+fi
+
+if [ "${INPUT_MODE}" != "gate" ]; then
+  exit 0
 fi
 
 # ---------------------------------------------------------------------------
@@ -180,13 +255,12 @@ fi
 threshold="$(printf '%s' "${INPUT_FAIL_ON}" | tr '[:upper:]' '[:lower:]')"
 gated=0
 case "${threshold}" in
-  none) ;;
   critical) gated=$((critical)) ;;
   high) gated=$((critical + high)) ;;
   medium) gated=$((critical + high + medium)) ;;
   low) gated=$((critical + high + medium + low)) ;;
-  info) gated=$((open_total)) ;;
-  *) fail "Unknown fail-on value '${INPUT_FAIL_ON}'. Use critical, high, medium, low, info, or none." ;;
+  info|none) gated=$((open_total)) ;;
+  *) fail "Unknown fail-on value '${INPUT_FAIL_ON}'. Use critical, high, medium, low, or info." ;;
 esac
 if [ "${gated}" -gt 0 ]; then
   fail "${gated} open finding(s) at or above ${threshold} severity: ${scan_url}"
