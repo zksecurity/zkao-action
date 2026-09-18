@@ -19,12 +19,12 @@ jobs:
         with:
           token: ${{ secrets.ZKAO_API_TOKEN }}
           project: ${{ vars.ZKAO_PROJECT_ID }}
-          budget: 5000
 ```
 
 That launches a quick look of every push to `main` and moves on; the
-results are on zkao when the scan finishes. The action needs no checkout:
-zkao reads the commit from GitHub itself.
+results are on zkao when the scan finishes. The scan runs at the budget zkao
+recommends for the repository, and the action needs no checkout: zkao reads
+the commit from GitHub itself.
 
 ## Before you start
 
@@ -33,7 +33,9 @@ zkao reads the commit from GitHub itself.
 2. Create a project API token in the project's settings with the `read` and
    `scans:launch` scopes, and store it as the `ZKAO_API_TOKEN` secret.
 3. Keep credits on the project. A scan reserves its budget at launch and is
-   billed what it spends.
+   billed what it spends. The budget defaults to what zkao recommends for the
+   scan type on the repository, sized from past runs; pass `budget` to cap it
+   yourself.
 
 ## Three modes
 
@@ -57,7 +59,6 @@ jobs:
         with:
           token: ${{ secrets.ZKAO_API_TOKEN }}
           project: ${{ vars.ZKAO_PROJECT_ID }}
-          budget: 5000
           scan: diff
           mode: gate
           fail-on: high
@@ -87,7 +88,7 @@ shrinking the scan. When that scan ships, `scan: diff` will run it.
 | --- | --- | --- | --- |
 | `token` | yes | | Project API token. Use a secret. |
 | `project` | yes | | The zkao project id. |
-| `budget` | yes | | Credit budget for the scan. |
+| `budget` | | recommended | Credit budget for the scan. Defaults to zkao's recommendation for this scan type on this repository. |
 | `mode` | | `launch` | `launch`, `wait`, or `gate`. |
 | `scan` | | `quick-look` | `quick-look`, `deep-audit`, `diff`, or a preset ref. |
 | `base` | | see above | For `scan: diff`, the commit the change is measured from. |
@@ -125,7 +126,6 @@ Use them in later steps:
         with:
           token: ${{ secrets.ZKAO_API_TOKEN }}
           project: ${{ vars.ZKAO_PROJECT_ID }}
-          budget: 5000
           mode: wait
       - run: echo "${{ steps.zkao.outputs.findings-total }} open findings at ${{ steps.zkao.outputs.scan-url }}"
 ```

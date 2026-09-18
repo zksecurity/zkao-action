@@ -13,8 +13,9 @@ inputs:
     description: "The zkao project id the repository belongs to."
     required: true
   budget:
-    description: "Credit budget for the scan. Reserved at launch; the scan is billed what it spends."
-    required: true
+    description: "Credit budget for the scan, reserved at launch and billed what it spends. Defaults to the budget zkao recommends for this scan type on this repository."
+    required: false
+    default: ""
   mode:
     description: "launch: start the scan and return (default). wait: also wait for it and report the findings. gate: wait and fail the job when open findings reach fail-on."
     required: false
@@ -70,7 +71,7 @@ inputs:
   cli-version:
     description: "Version of the @zksecurity/zkao-cli package the action runs."
     required: false
-    default: "0.5.1"
+    default: "0.7.0"
 
 outputs:
   scan-id:

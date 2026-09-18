@@ -140,7 +140,8 @@ fi
 # ---------------------------------------------------------------------------
 # Launch.
 # ---------------------------------------------------------------------------
-args=(scans launch --repo "${repository_id}" --budget "${INPUT_BUDGET}" --commit "${commit}")
+args=(scans launch --repo "${repository_id}" --commit "${commit}")
+[ -n "${INPUT_BUDGET}" ] && args+=(--budget "${INPUT_BUDGET}")
 [ -n "${branch}" ] && args+=(--branch "${branch}")
 [ -n "${preset}" ] && args+=(--preset "${preset}")
 [ -n "${guidance_file}" ] && args+=(--guidance "${guidance_file}")
@@ -155,6 +156,7 @@ fi
 launched="$(zkao "${args[@]}")"
 scan_id="$(printf '%s' "${launched}" | jq -r '.scanId // empty')"
 [ -n "${scan_id}" ] || fail "The launch returned no scan id: ${launched}"
+budget="$(printf '%s' "${launched}" | jq -r '.creditBudget // empty')"
 scan_url="${INPUT_BASE_URL%/}/projects/${ZKAO_PROJECT_ID}/scans/${scan_id}"
 label="${scan:-scan}"
 [ "${diff_scan}" -eq 1 ] && label="diff scan (a quick look steered at the change)"
@@ -163,7 +165,7 @@ label="${scan:-scan}"
   echo "scan-id=${scan_id}"
   echo "scan-url=${scan_url}"
 } >>"${GITHUB_OUTPUT}"
-echo "Launched ${label} ${scan_id} of ${commit:0:12}: ${scan_url}"
+echo "Launched ${label} ${scan_id} of ${commit:0:12}${budget:+ with a budget of ${budget} credits}: ${scan_url}"
 
 if [ "${INPUT_MODE}" = "launch" ]; then
   echo "status=QUEUED" >>"${GITHUB_OUTPUT}"
