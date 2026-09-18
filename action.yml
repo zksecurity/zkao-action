@@ -62,7 +62,7 @@ inputs:
   cli-version:
     description: "Version of the @zksecurity/zkao-cli package the action runs."
     required: false
-    default: "0.6.0"
+    default: "0.5.1"
 
 outputs:
   scan-id:
