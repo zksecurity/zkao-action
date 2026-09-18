@@ -1,0 +1,119 @@
+name: "zkao Security Scan"
+description: "Launch a zkao security scan of the current commit, wait for it, and report its findings."
+author: "zkSecurity"
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  token:
+    description: "A zkao project API token with the read and scans:launch scopes. Store it as a secret."
+    required: true
+  project:
+    description: "The zkao project id the repository belongs to."
+    required: true
+  budget:
+    description: "Credit budget for the scan. Reserved at launch; the scan is billed what it spends."
+    required: true
+  repository:
+    description: "The zkao repository id to scan. Defaults to the zkao repository whose owner/name matches this GitHub repository."
+    required: false
+    default: ""
+  preset:
+    description: "Scan type to run, as a preset ref such as builtin:Quick Look. Defaults to the project's first active scan type."
+    required: false
+    default: ""
+  commit:
+    description: "Commit to scan. Defaults to the pull request head on pull_request events, otherwise the pushed commit."
+    required: false
+    default: ""
+  branch:
+    description: "Branch the commit belongs to, which lets the scan reuse the branch's repository map. Defaults to the workflow's branch."
+    required: false
+    default: ""
+  areas:
+    description: "Comma-separated audit area keys to scope the scan to. Empty scans the whole repository."
+    required: false
+    default: ""
+  guidance-file:
+    description: "Path to a guidance file that replaces the repository's guidance for this scan."
+    required: false
+    default: ""
+  wait:
+    description: "Wait for the scan to finish and report its findings. Set to false to launch and return."
+    required: false
+    default: "true"
+  timeout:
+    description: "Seconds to wait for the scan before giving up. The scan keeps running on zkao."
+    required: false
+    default: "10800"
+  fail-on:
+    description: "Fail the job when the scan has open findings at or above this severity: critical, high, medium, low, info, or none."
+    required: false
+    default: "none"
+  summary:
+    description: "Write the findings to the job summary."
+    required: false
+    default: "true"
+  base-url:
+    description: "The zkao instance to talk to."
+    required: false
+    default: "https://zkao.io"
+  cli-version:
+    description: "Version of the @zksecurity/zkao-cli package the action runs."
+    required: false
+    default: "0.6.0"
+
+outputs:
+  scan-id:
+    description: "Id of the scan that was launched."
+    value: ${{ steps.scan.outputs.scan-id }}
+  scan-url:
+    description: "Where to read the scan on zkao."
+    value: ${{ steps.scan.outputs.scan-url }}
+  status:
+    description: "Final scan status when waited for (COMPLETED, FAILED, CANCELLED), otherwise QUEUED."
+    value: ${{ steps.scan.outputs.status }}
+  findings-total:
+    description: "Open findings, excluding false positives and duplicates. Empty when not waited for."
+    value: ${{ steps.scan.outputs.findings-total }}
+  findings-critical:
+    description: "Open critical findings."
+    value: ${{ steps.scan.outputs.findings-critical }}
+  findings-high:
+    description: "Open high findings."
+    value: ${{ steps.scan.outputs.findings-high }}
+  findings-medium:
+    description: "Open medium findings."
+    value: ${{ steps.scan.outputs.findings-medium }}
+  findings-low:
+    description: "Open low findings."
+    value: ${{ steps.scan.outputs.findings-low }}
+  findings-info:
+    description: "Open informational findings."
+    value: ${{ steps.scan.outputs.findings-info }}
+
+runs:
+  using: composite
+  steps:
+    - id: scan
+      shell: bash
+      env:
+        ZKAO_API_TOKEN: ${{ inputs.token }}
+        ZKAO_PROJECT_ID: ${{ inputs.project }}
+        ZKAO_URL: ${{ inputs.base-url }}
+        ZKAO_NO_UPDATE_CHECK: "1"
+        INPUT_BUDGET: ${{ inputs.budget }}
+        INPUT_REPOSITORY: ${{ inputs.repository }}
+        INPUT_PRESET: ${{ inputs.preset }}
+        INPUT_COMMIT: ${{ inputs.commit }}
+        INPUT_BRANCH: ${{ inputs.branch }}
+        INPUT_AREAS: ${{ inputs.areas }}
+        INPUT_GUIDANCE_FILE: ${{ inputs.guidance-file }}
+        INPUT_WAIT: ${{ inputs.wait }}
+        INPUT_TIMEOUT: ${{ inputs.timeout }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_SUMMARY: ${{ inputs.summary }}
+        INPUT_BASE_URL: ${{ inputs.base-url }}
+        INPUT_CLI_VERSION: ${{ inputs.cli-version }}
+      run: "${GITHUB_ACTION_PATH}/scripts/scan.sh"

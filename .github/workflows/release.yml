@@ -1,0 +1,29 @@
+name: Move the major tag
+# A workflow pins `uses: zksecurity/zkao-action@v1`; every release re-points
+# that tag at itself so the pin follows the latest v1.x.y.
+on:
+  release:
+    types: [published]
+jobs:
+  major-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Point the major tag at this release
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "Not a semver tag: $TAG"; exit 0 ;;
+          esac
+          major="${TAG%%.*}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$major" "$TAG"
+          git push -f origin "$major"
