@@ -72,15 +72,13 @@ jobs:
 | --- | --- |
 | `quick-look` (default) | The core techniques in one cheap pass. |
 | `deep-audit` | The full methodology over the whole repository. |
-| `diff` | A quick look steered at the commits added since `base`. |
+| `diff` | Only the change since `base`. Cheap and fast. |
 | any preset ref | That preset, for example `builtin:Deep Audit` or a custom one. |
 
-A diff scan reads the change from GitHub (the pull request's base to its
-head, or the commit before a push to the pushed commit) and hands the changed
-files to the scan as guidance, on top of the repository's own guidance:
-everything else is context, not a target. zkao does not yet have a scan that
-reads only the diff, so this steers where the budget goes rather than
-shrinking the scan. When that scan ships, `scan: diff` will run it.
+A diff scan audits the change from the merge base of `base` to the scanned
+commit. `base` defaults to the pull request's base, or the commit before a push.
+The rest of the repository is context, not a target. It needs one earlier full
+scan of the repository.
 
 ## Inputs
 
@@ -100,7 +98,6 @@ shrinking the scan. When that scan ships, `scan: diff` will run it.
 | `guidance-file` | | | A file whose content replaces the repository's guidance for this scan. |
 | `timeout` | | `10800` | Seconds to wait in `wait` and `gate` modes before giving up. The scan keeps running on zkao. |
 | `summary` | | `true` | Write the scan link, and the findings once waited for, to the job summary. |
-| `github-token` | | the workflow's | Reads the change for `scan: diff`. |
 | `base-url` | | `https://zkao.io` | The zkao instance. |
 | `cli-version` | | pinned | Version of `@zksecurity/zkao-cli` the action runs. |
 
@@ -147,7 +144,7 @@ The action is a composite step that runs the published
 [`@zksecurity/zkao-cli`](https://www.npmjs.com/package/@zksecurity/zkao-cli)
 against the public API. Nothing is compiled or vendored: the CLI version is
 pinned in `action.yml` and can be overridden with `cli-version`. The runner
-needs `node`, `jq` and `curl`, which every GitHub-hosted runner has.
+needs `node` and `jq`, which every GitHub-hosted runner has.
 
 ## Releasing
 

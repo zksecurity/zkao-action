@@ -76,23 +76,20 @@ fi
 
 # ---------------------------------------------------------------------------
 # Which scan. A kind name maps to its builtin preset; anything else is passed
-# through as a preset ref. A diff scan is a quick look steered at the change:
-# the public API has no diff scope yet, so the changed files go in as guidance
-# on top of the repository's own.
+# through as a preset ref. A diff scan audits only the change since its base.
 # ---------------------------------------------------------------------------
 scan="$(printf '%s' "${INPUT_SCAN}" | tr '[:upper:]' '[:lower:]')"
 preset=""
-diff_scan=0
+base=""
 case "${scan}" in
   quick-look|quicklook|"quick look") preset="builtin:Quick Look" ;;
   deep-audit|deepaudit|"deep audit"|audit) preset="builtin:Deep Audit" ;;
-  diff|diff-scan) preset="builtin:Quick Look"; diff_scan=1 ;;
+  diff|diff-scan) preset="builtin:Diff Scan" ;;
   "") ;;
   *) preset="${INPUT_SCAN}" ;;
 esac
 
-guidance_file="${INPUT_GUIDANCE_FILE}"
-if [ "${diff_scan}" -eq 1 ]; then
+if [ "${preset}" = "builtin:Diff Scan" ]; then
   base="${INPUT_BASE}"
   if [ -z "${base}" ]; then
     case "${GITHUB_EVENT_NAME:-}" in
@@ -108,33 +105,6 @@ if [ "${diff_scan}" -eq 1 ]; then
   if [[ "${base}" =~ ^0+$ ]]; then
     fail "This push created the branch, so there is no earlier commit to diff against. Pass the base input."
   fi
-
-  compare="$(curl -sS --fail \
-    -H "Authorization: Bearer ${INPUT_GITHUB_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "${GITHUB_API_URL:-https://api.github.com}/repos/${GITHUB_REPOSITORY}/compare/${base}...${commit}?per_page=300")" \
-    || fail "Could not read the change ${base:0:12}...${commit:0:12} from GitHub."
-  changed_files="$(printf '%s' "${compare}" | jq -r '.files[]?.filename')"
-  commit_count="$(printf '%s' "${compare}" | jq -r '.total_commits // 0')"
-  if [ -z "${changed_files}" ]; then
-    fail "Nothing changed between ${base:0:12} and ${commit:0:12}, so there is nothing for a diff scan to read."
-  fi
-
-  guidance_file="${RUNNER_TEMP:-/tmp}/zkao-diff-guidance.md"
-  {
-    if [ -n "${INPUT_GUIDANCE_FILE}" ]; then
-      cat "${INPUT_GUIDANCE_FILE}"
-    else
-      # The repository's own guidance still applies underneath the scope: a
-      # per-scan guidance replaces it, so it is carried over by hand.
-      zkao guidance get "${repository_id}" | jq -r '.content // empty'
-    fi
-    printf '\n\n## Scope: the change between %s and %s\n\n' "${base:0:12}" "${commit:0:12}"
-    printf 'This scan is about the %s commit(s) added since %s. ' "${commit_count}" "${base:0:12}"
-    printf 'Only the files below changed. Read the rest of the repository as context for them, not as a target.\n\n'
-    printf '%s\n' "${changed_files}" | sed 's/^/- /'
-  } >"${guidance_file}"
-  echo "Diff scan: ${commit_count} commit(s), $(printf '%s\n' "${changed_files}" | wc -l | tr -d ' ') changed file(s) since ${base:0:12}."
 fi
 
 # ---------------------------------------------------------------------------
@@ -144,7 +114,8 @@ args=(scans launch --repo "${repository_id}" --commit "${commit}")
 [ -n "${INPUT_BUDGET}" ] && args+=(--budget "${INPUT_BUDGET}")
 [ -n "${branch}" ] && args+=(--branch "${branch}")
 [ -n "${preset}" ] && args+=(--preset "${preset}")
-[ -n "${guidance_file}" ] && args+=(--guidance "${guidance_file}")
+[ -n "${base}" ] && args+=(--base "${base}")
+[ -n "${INPUT_GUIDANCE_FILE}" ] && args+=(--guidance "${INPUT_GUIDANCE_FILE}")
 if [ -n "${INPUT_AREAS}" ]; then
   IFS=',' read -r -a areas <<<"${INPUT_AREAS}"
   for area in "${areas[@]}"; do
@@ -159,7 +130,7 @@ scan_id="$(printf '%s' "${launched}" | jq -r '.scanId // empty')"
 budget="$(printf '%s' "${launched}" | jq -r '.creditBudget // empty')"
 scan_url="${INPUT_BASE_URL%/}/projects/${ZKAO_PROJECT_ID}/scans/${scan_id}"
 label="${scan:-scan}"
-[ "${diff_scan}" -eq 1 ] && label="diff scan (a quick look steered at the change)"
+[ -n "${base}" ] && label="diff scan since ${base:0:12}"
 
 {
   echo "scan-id=${scan_id}"

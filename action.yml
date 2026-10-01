@@ -21,7 +21,7 @@ inputs:
     required: false
     default: "launch"
   scan:
-    description: "What to run: quick-look, deep-audit, diff, or any preset ref such as builtin:Deep Audit. diff steers a quick look at the commits added since base."
+    description: "What to run: quick-look, deep-audit, diff, or any preset ref such as builtin:Deep Audit. diff audits only the change since base."
     required: false
     default: "quick-look"
   base:
@@ -60,10 +60,6 @@ inputs:
     description: "Write the scan link and, when waited for, the findings to the job summary."
     required: false
     default: "true"
-  github-token:
-    description: "Token used to read the change for scan: diff. The workflow's own token is enough."
-    required: false
-    default: ${{ github.token }}
   base-url:
     description: "The zkao instance to talk to."
     required: false
@@ -71,7 +67,7 @@ inputs:
   cli-version:
     description: "Version of the @zksecurity/zkao-cli package the action runs."
     required: false
-    default: "0.7.0"
+    default: "0.9.0"
 
 outputs:
   scan-id:
@@ -124,7 +120,6 @@ runs:
         INPUT_GUIDANCE_FILE: ${{ inputs.guidance-file }}
         INPUT_TIMEOUT: ${{ inputs.timeout }}
         INPUT_SUMMARY: ${{ inputs.summary }}
-        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
         INPUT_BASE_URL: ${{ inputs.base-url }}
         INPUT_CLI_VERSION: ${{ inputs.cli-version }}
       run: "${GITHUB_ACTION_PATH}/scripts/scan.sh"
