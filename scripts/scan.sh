@@ -51,28 +51,95 @@ if [ -z "${repository_id}" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Which pull request, if any. Needed to comment, and on an issue_comment event
+# it is the only way to learn which commits the pull request spans: that event
+# carries no SHAs, and the workflow runs on the default branch, so GITHUB_SHA
+# points at the wrong code.
+# ---------------------------------------------------------------------------
+gh_api() {
+  curl -sS --fail \
+    -H "Authorization: Bearer ${INPUT_GITHUB_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GITHUB_API_URL:-https://api.github.com}$1"
+}
+
+pr_number=""
+pr_head=""
+pr_base=""
+pr_base_ref=""
+pr_head_ref=""
+case "${GITHUB_EVENT_NAME:-}" in
+  pull_request|pull_request_target)
+    pr_number="$(jq -r '.pull_request.number // empty' "${GITHUB_EVENT_PATH}")"
+    pr_head="$(jq -r '.pull_request.head.sha // empty' "${GITHUB_EVENT_PATH}")"
+    pr_base="$(jq -r '.pull_request.base.sha // empty' "${GITHUB_EVENT_PATH}")"
+    pr_base_ref="$(jq -r '.pull_request.base.ref // empty' "${GITHUB_EVENT_PATH}")"
+    pr_head_ref="$(jq -r '.pull_request.head.ref // empty' "${GITHUB_EVENT_PATH}")"
+    ;;
+  issue_comment)
+    if [ "$(jq -r 'if .issue.pull_request then "pr" else "issue" end' "${GITHUB_EVENT_PATH}")" != "pr" ]; then
+      echo "This comment is on an issue, not a pull request; nothing to scan."
+      exit 0
+    fi
+    # Only someone who can already push or review may spend the project's
+    # credits. Without this, any passer-by could launch scans by commenting on
+    # a public repository.
+    association="$(jq -r '.comment.author_association // empty' "${GITHUB_EVENT_PATH}")"
+    case "${association}" in
+      OWNER|MEMBER|COLLABORATOR) ;;
+      *)
+        echo "Ignoring a comment from ${association:-an outside account}: only the repository's owner, members and collaborators can start a scan."
+        exit 0
+        ;;
+    esac
+    pr_number="$(jq -r '.issue.number // empty' "${GITHUB_EVENT_PATH}")"
+    [ -n "${pr_number}" ] || fail "Could not read the pull request number from the comment event."
+    pr="$(gh_api "/repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")" \
+      || fail "Could not read pull request #${pr_number} from GitHub."
+    pr_head="$(printf '%s' "${pr}" | jq -r '.head.sha // empty')"
+    pr_base="$(printf '%s' "${pr}" | jq -r '.base.sha // empty')"
+    pr_base_ref="$(printf '%s' "${pr}" | jq -r '.base.ref // empty')"
+    pr_head_ref="$(printf '%s' "${pr}" | jq -r '.head.ref // empty')"
+    ;;
+esac
+
+# ---------------------------------------------------------------------------
 # Which commit. A pull request's github.sha is the merge commit GitHub built,
 # which the scan cannot read, so the head of the pull request is scanned.
 # ---------------------------------------------------------------------------
 commit="${INPUT_COMMIT}"
 if [ -z "${commit}" ]; then
-  case "${GITHUB_EVENT_NAME:-}" in
-    pull_request|pull_request_target)
-      commit="$(jq -r '.pull_request.head.sha // empty' "${GITHUB_EVENT_PATH}")"
-      ;;
-  esac
-  commit="${commit:-${GITHUB_SHA:-}}"
+  commit="${pr_head:-${GITHUB_SHA:-}}"
 fi
 [ -n "${commit}" ] || fail "Could not determine the commit to scan. Pass the commit input."
 
 branch="${INPUT_BRANCH}"
 if [ -z "${branch}" ]; then
-  if [ -n "${GITHUB_HEAD_REF:-}" ]; then
+  if [ -n "${pr_head_ref}" ]; then
+    branch="${pr_head_ref}"
+  elif [ -n "${GITHUB_HEAD_REF:-}" ]; then
     branch="${GITHUB_HEAD_REF}"
   elif [[ "${GITHUB_REF:-}" == refs/heads/* ]]; then
     branch="${GITHUB_REF#refs/heads/}"
   fi
 fi
+
+# Comment once when the scan starts and once with its result. Never fatal: a
+# missing permission must not fail a job whose scan ran fine.
+post_comment() {
+  [ "${INPUT_COMMENT}" = "true" ] || return 0
+  if [ -z "${pr_number}" ]; then
+    echo "::warning::comment is on but this event has no pull request to comment on."
+    return 0
+  fi
+  jq -n --arg body "$1" '{body: $body}' | curl -sS --fail -o /dev/null \
+    -X POST \
+    -H "Authorization: Bearer ${INPUT_GITHUB_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    --data @- \
+    "${GITHUB_API_URL:-https://api.github.com}/repos/${GITHUB_REPOSITORY}/issues/${pr_number}/comments" \
+    || echo "::warning::Could not comment on #${pr_number}. The job needs permissions: pull-requests: write."
+}
 
 # ---------------------------------------------------------------------------
 # Which scan. A kind name maps to its builtin preset; anything else is passed
@@ -92,10 +159,10 @@ esac
 if [ "${preset}" = "builtin:Diff Scan" ]; then
   base="${INPUT_BASE}"
   if [ -z "${base}" ]; then
+    base="${pr_base}"
+  fi
+  if [ -z "${base}" ]; then
     case "${GITHUB_EVENT_NAME:-}" in
-      pull_request|pull_request_target)
-        base="$(jq -r '.pull_request.base.sha // empty' "${GITHUB_EVENT_PATH}")"
-        ;;
       push)
         base="$(jq -r '.before // empty' "${GITHUB_EVENT_PATH}")"
         ;;
@@ -104,6 +171,12 @@ if [ "${preset}" = "builtin:Diff Scan" ]; then
   [ -n "${base}" ] || fail "A diff scan needs the commit the change is measured from. Pass the base input."
   if [[ "${base}" =~ ^0+$ ]]; then
     fail "This push created the branch, so there is no earlier commit to diff against. Pass the base input."
+  fi
+  # A diff scan reads the change against the map of the branch it is going to
+  # land on, so on a pull request the branch is the target, not the topic
+  # branch. Sending the topic branch would build a throw-away map per branch.
+  if [ -z "${INPUT_BRANCH}" ] && [ -n "${pr_base_ref}" ]; then
+    branch="${pr_base_ref}"
   fi
 fi
 
@@ -138,6 +211,9 @@ label="${scan:-scan}"
 } >>"${GITHUB_OUTPUT}"
 echo "Launched ${label} ${scan_id} of ${commit:0:12}${budget:+ with a budget of ${budget} credits}: ${scan_url}"
 
+post_comment "$(printf '**zkao** is scanning `%s` ([%s](%s)).\n\nResults will follow here.' \
+  "${commit:0:12}" "${label}" "${scan_url}")"
+
 if [ "${INPUT_MODE}" = "launch" ]; then
   echo "status=QUEUED" >>"${GITHUB_OUTPUT}"
   if [ "${INPUT_SUMMARY}" = "true" ]; then
@@ -158,6 +234,8 @@ if [ "${status}" != "COMPLETED" ]; then
   if [ "${INPUT_SUMMARY}" = "true" ]; then
     printf '## zkao scan %s\n\n[Scan %s](%s) of `%s` ended as %s.\n' "${status}" "${scan_id}" "${scan_url}" "${commit:0:12}" "${status}" >>"${GITHUB_STEP_SUMMARY}"
   fi
+  post_comment "$(printf '**zkao** scan of `%s` ended as %s. [See the scan](%s).' \
+    "${commit:0:12}" "${status}" "${scan_url}")"
   fail "Scan ${scan_id} ended as ${status}: ${scan_url}"
 fi
 
@@ -216,6 +294,16 @@ if [ "${INPUT_SUMMARY}" = "true" ]; then
       printf '\n'
     fi
   } >>"${GITHUB_STEP_SUMMARY}"
+fi
+
+# Counts and a link, never the findings themselves: on a public repository a
+# comment would disclose unfixed vulnerabilities to everyone who can read it.
+if [ "${open_total}" -gt 0 ]; then
+  post_comment "$(printf '**zkao** found **%s open finding(s)** in `%s`: critical %s, high %s, medium %s, low %s, info %s.\n\n[Read them on zkao](%s).' \
+    "${open_total}" "${commit:0:12}" "${critical}" "${high}" "${medium}" "${low}" "${info}" "${scan_url}")"
+else
+  post_comment "$(printf '**zkao** found no open findings in `%s`. [See the scan](%s).' \
+    "${commit:0:12}" "${scan_url}")"
 fi
 
 if [ "${INPUT_MODE}" != "gate" ]; then

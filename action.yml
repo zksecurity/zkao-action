@@ -60,6 +60,14 @@ inputs:
     description: "Write the scan link and, when waited for, the findings to the job summary."
     required: false
     default: "true"
+  comment:
+    description: "Comment on the pull request: once when the scan starts, and again with its result when waited for. Needs pull-requests: write and a pull request to comment on."
+    required: false
+    default: "false"
+  github-token:
+    description: "Token used to comment on the pull request and, on an issue_comment event, to read which commits the pull request spans. The workflow's own GITHUB_TOKEN is enough."
+    required: false
+    default: ${{ github.token }}
   base-url:
     description: "The zkao instance to talk to."
     required: false
@@ -120,6 +128,8 @@ runs:
         INPUT_GUIDANCE_FILE: ${{ inputs.guidance-file }}
         INPUT_TIMEOUT: ${{ inputs.timeout }}
         INPUT_SUMMARY: ${{ inputs.summary }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
         INPUT_BASE_URL: ${{ inputs.base-url }}
         INPUT_CLI_VERSION: ${{ inputs.cli-version }}
       run: "${GITHUB_ACTION_PATH}/scripts/scan.sh"
