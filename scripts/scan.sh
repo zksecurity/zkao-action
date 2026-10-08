@@ -101,6 +101,18 @@ case "${GITHUB_EVENT_NAME:-}" in
     pr_base_ref="$(printf '%s' "${pr}" | jq -r '.base.ref // empty')"
     pr_head_ref="$(printf '%s' "${pr}" | jq -r '.head.ref // empty')"
     ;;
+  push)
+    # A push carries no pull request. When the pushed branch has one open,
+    # comment there anyway: the scan is about that change either way.
+    if [ "${INPUT_COMMENT}" = "true" ] && [[ "${GITHUB_REF:-}" == refs/heads/* ]]; then
+      pushed_branch="${GITHUB_REF#refs/heads/}"
+      owner="${GITHUB_REPOSITORY%%/*}"
+      pr_number="$(
+        gh_api "/repos/${GITHUB_REPOSITORY}/pulls?state=open&head=${owner}:${pushed_branch}" \
+          | jq -r '.[0].number // empty'
+      )" || pr_number=""
+    fi
+    ;;
 esac
 
 # ---------------------------------------------------------------------------
