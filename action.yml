@@ -73,7 +73,7 @@ inputs:
     required: false
     default: "https://zkao.io"
   cli-version:
-    description: "Version of the @zksecurity/zkao-cli package the action runs. Branch next runs the CLI's next channel, which tracks staging."
+    description: "Version of the @zksecurity/zkao-cli package the action runs. Branch staging runs the CLI's next channel, which tracks staging."
     required: false
     default: "next"
 
