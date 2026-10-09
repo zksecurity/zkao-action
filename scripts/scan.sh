@@ -32,10 +32,12 @@ repository_id="${INPUT_REPOSITORY}"
 if [ -z "${repository_id}" ]; then
   owner="${GITHUB_REPOSITORY%%/*}"
   name="${GITHUB_REPOSITORY#*/}"
-  repos="$(zkao repos)"
+  # `zkao repos` returns a bare array; older CLIs wrapped it in
+  # `{repositories: [...]}`. Accept either so one action serves both.
+  repos="$(zkao repos | jq '.repositories // .')"
   repository_id="$(
     printf '%s' "${repos}" | jq -r --arg owner "${owner}" --arg name "${name}" '
-      .repositories[]
+      .[]
       | select((.owner | ascii_downcase) == ($owner | ascii_downcase)
            and (.name | ascii_downcase) == ($name | ascii_downcase))
       | .id' | head -n 1
@@ -43,7 +45,7 @@ if [ -z "${repository_id}" ]; then
   if [ -z "${repository_id}" ]; then
     fail "No repository named ${GITHUB_REPOSITORY} in zkao project ${ZKAO_PROJECT_ID}. Add it to the project, or pass the zkao repository id as the repository input."
   fi
-  readiness="$(printf '%s' "${repos}" | jq -r --arg id "${repository_id}" '.repositories[] | select(.id == $id) | .readiness')"
+  readiness="$(printf '%s' "${repos}" | jq -r --arg id "${repository_id}" '.[] | select(.id == $id) | .readiness')"
   if [ "${readiness}" = "analyzing" ]; then
     echo "zkao is still analyzing ${GITHUB_REPOSITORY}; waiting for that to finish."
     zkao repos:wait "${repository_id}" >/dev/null
