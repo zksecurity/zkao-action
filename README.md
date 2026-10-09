@@ -154,6 +154,10 @@ into a link to whoever owns that account and notifies them, and `zkao` belongs
 to someone else. Change it with the `mention` input; a leading slash on the
 command itself is optional, so `/zkao scan` and `/zkao /scan` are the same.
 
+A word after `scan` that is not a kind is ignored, so `/zkao scan this one`
+runs the workflow's own kind rather than failing over a word nobody meant as a
+preset.
+
 Set `mention` to an `@handle` you own and it still works, except that an
 unrecognised word after it is then left alone rather than answered, since it
 may be ordinary prose.

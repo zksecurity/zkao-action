@@ -169,17 +169,17 @@ case "${GITHUB_EVENT_NAME:-}" in
 
     case "${comment_command}" in
       scan)
-        # An explicit kind overrides the workflow's default. Anything else is
-        # the tail of a sentence ("/zkao scan this please"), which must not be
-        # taken for a preset: it would reach the API and fail the launch.
+        # A named kind overrides the workflow's default. Anything else is the
+        # tail of a sentence ("/zkao scan this please"), so the default stands.
+        # Passing it through would reach the API as a preset ref and fail the
+        # launch over a word nobody meant as one.
         case "${comment_arg}" in
-          "") ;;
           diff|diff-scan|quick-look|quicklook|deep-audit|deepaudit|audit|builtin:*)
             INPUT_SCAN="${comment_arg}"
             ;;
+          "") ;;
           *)
-            reply "$(printf '**zkao** does not scan \`%s\`. Say \`%s scan\`, or name \`diff\`, \`quick-look\` or \`deep-audit\`.' "${comment_arg}" "${INPUT_MENTION}")"
-            exit 0
+            echo "Ignoring \"${comment_arg}\": not a scan kind. Running ${INPUT_SCAN}."
             ;;
         esac
         ;;
