@@ -108,8 +108,16 @@ jobs:
           comment: true
 ```
 
-To scan on request instead of on every push, trigger on a comment and look for
-a mention:
+Comments are posted by `github-actions[bot]`, since the action uses the
+workflow's own token. To post under your own bot, mint a GitHub App
+installation token in an earlier step and pass it as `github-token`.
+
+A push carries no pull request. When the pushed branch has one open, the action
+finds it and comments there anyway.
+
+## Run a scan from a comment
+
+Trigger on `issue_comment` and the action takes commands from the pull request:
 
 ```yaml
 on:
@@ -134,10 +142,24 @@ jobs:
           comment: true
 ```
 
-On that event the action reads the pull request to find the commits it spans,
-because a comment carries no commit and the workflow itself runs on the default
-branch. It also ignores comments from anyone who is not the repository's owner,
-a member or a collaborator, so a passer-by cannot spend the project's credits.
+| Comment | What happens |
+| --- | --- |
+| `@zkao /scan` | Audits the pull request's change, with the kind the workflow configures. |
+| `@zkao /scan deep-audit` | Audits it as `diff`, `quick-look` or `deep-audit` instead. |
+| `@zkao /help` | Posts the usage. No scan. |
+| `@zkao` | Posts the usage. Deliberately does not scan, so a passing mention never spends credits. |
+
+A mention followed by ordinary prose, such as "ask @zkao about this later", is
+left alone. Change the handle with the `mention` input.
+
+**A workflow triggered by `issue_comment` only ever runs from the repository's
+default branch.** On any other branch GitHub never dispatches it, and nothing
+happens with no error to explain it. On that event the action reads the pull
+request to find its head, because the comment carries no commit and the
+workflow itself runs on the default branch.
+
+Only the repository's owner, members and collaborators can start a scan this
+way, so a passer-by cannot spend the project's credits.
 
 The result comment carries counts and a link, never the findings themselves: on
 a public repository it would otherwise disclose unfixed vulnerabilities to
@@ -162,6 +184,7 @@ anyone who can read the pull request.
 | `timeout` | | `10800` | Seconds to wait in `wait` and `gate` modes before giving up. The scan keeps running on zkao. |
 | `summary` | | `true` | Write the scan link, and the findings once waited for, to the job summary. |
 | `comment` | | `false` | Comment on the pull request when the scan starts and when it finishes. Needs `pull-requests: write`. |
+| `mention` | | `@zkao` | The handle a comment names to reach zkao. |
 | `github-token` | | the workflow's | Token used to comment, and to read the pull request on an `issue_comment` event. |
 | `base-url` | | `https://zkao.io` | The zkao instance. |
 | `cli-version` | | pinned | Version of `@zksecurity/zkao-cli` the action runs. |
