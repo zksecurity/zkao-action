@@ -65,6 +65,46 @@ gh_api() {
     "${GITHUB_API_URL:-https://api.github.com}$1"
 }
 
+# Comment on the pull request. Never fatal: a missing permission must not fail
+# a job whose scan ran fine.
+post_comment() {
+  [ "${INPUT_COMMENT}" = "true" ] || return 0
+  if [ -z "${pr_number}" ]; then
+    echo "::warning::comment is on but this event has no pull request to comment on."
+    return 0
+  fi
+  jq -n --arg body "$1" '{body: $body}' | curl -sS --fail -o /dev/null \
+    -X POST \
+    -H "Authorization: Bearer ${INPUT_GITHUB_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    --data @- \
+    "${GITHUB_API_URL:-https://api.github.com}/repos/${GITHUB_REPOSITORY}/issues/${pr_number}/comments" \
+    || echo "::warning::Could not comment on #${pr_number}. The job needs permissions: pull-requests: write."
+}
+
+# Always answer a command, even when `comment` is off: a person who typed one
+# is owed a reply.
+reply() {
+  local saved="${INPUT_COMMENT}"
+  INPUT_COMMENT=true
+  post_comment "$1"
+  INPUT_COMMENT="${saved}"
+}
+
+usage_text() {
+  cat <<EOF
+**zkao** takes commands in a pull request comment.
+
+| Command | What it does |
+| --- | --- |
+| \`${INPUT_MENTION} /scan\` | Audit this pull request's change (${INPUT_SCAN}). |
+| \`${INPUT_MENTION} /scan <kind>\` | Audit it as \`diff\`, \`quick-look\` or \`deep-audit\`. |
+| \`${INPUT_MENTION} /help\` | Show this. |
+
+A scan reports back here when it finishes. Only the repository's owner, members and collaborators can start one.
+EOF
+}
+
 pr_number=""
 pr_head=""
 pr_base=""
@@ -102,6 +142,43 @@ case "${GITHUB_EVENT_NAME:-}" in
     pr_base="$(printf '%s' "${pr}" | jq -r '.base.sha // empty')"
     pr_base_ref="$(printf '%s' "${pr}" | jq -r '.base.ref // empty')"
     pr_head_ref="$(printf '%s' "${pr}" | jq -r '.head.ref // empty')"
+
+    # What was asked. Everything after the mention on its line: the first word
+    # is the command, the second its argument.
+    body="$(jq -r '.comment.body // ""' "${GITHUB_EVENT_PATH}" | tr '\r\n' '  ')"
+    after="$(printf '%s' "${body}" | grep -oiE "${INPUT_MENTION}.*" | head -n 1 || true)"
+    set -f
+    # shellcheck disable=SC2086  # deliberate word split of the comment text
+    set -- ${after}
+    set +f
+    shift || true
+    comment_command="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+    comment_arg="$(printf '%s' "${2:-}" | tr '[:upper:]' '[:lower:]')"
+
+    case "${comment_command}" in
+      /scan)
+        # An explicit kind overrides the workflow's default.
+        if [ -n "${comment_arg}" ]; then
+          INPUT_SCAN="${comment_arg}"
+        fi
+        ;;
+      /help|"")
+        # A bare mention is a question, not an order. Answering instead of
+        # scanning keeps a passing reference from spending the project's credits.
+        reply "$(usage_text)"
+        exit 0
+        ;;
+      /*)
+        reply "$(printf '**zkao** does not know \`%s\`. Try \`%s /help\`.' "${comment_command}" "${INPUT_MENTION}")"
+        exit 0
+        ;;
+      *)
+        # Prose, not an instruction: someone mentioned zkao in conversation.
+        # Saying nothing beats answering a sentence that was not addressed here.
+        echo "Mentioned without a command; nothing to do."
+        exit 0
+        ;;
+    esac
     ;;
   push)
     # A push carries no pull request. When the pushed branch has one open,
@@ -121,6 +198,7 @@ esac
 # Which commit. A pull request's github.sha is the merge commit GitHub built,
 # which the scan cannot read, so the head of the pull request is scanned.
 # ---------------------------------------------------------------------------
+# shellcheck disable=SC2153  # INPUT_COMMIT is an action input, not a typo for INPUT_COMMENT
 commit="${INPUT_COMMIT}"
 if [ -z "${commit}" ]; then
   commit="${pr_head:-${GITHUB_SHA:-}}"
@@ -138,22 +216,6 @@ if [ -z "${branch}" ]; then
   fi
 fi
 
-# Comment once when the scan starts and once with its result. Never fatal: a
-# missing permission must not fail a job whose scan ran fine.
-post_comment() {
-  [ "${INPUT_COMMENT}" = "true" ] || return 0
-  if [ -z "${pr_number}" ]; then
-    echo "::warning::comment is on but this event has no pull request to comment on."
-    return 0
-  fi
-  jq -n --arg body "$1" '{body: $body}' | curl -sS --fail -o /dev/null \
-    -X POST \
-    -H "Authorization: Bearer ${INPUT_GITHUB_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    --data @- \
-    "${GITHUB_API_URL:-https://api.github.com}/repos/${GITHUB_REPOSITORY}/issues/${pr_number}/comments" \
-    || echo "::warning::Could not comment on #${pr_number}. The job needs permissions: pull-requests: write."
-}
 
 # ---------------------------------------------------------------------------
 # Which scan. A kind name maps to its builtin preset; anything else is passed
