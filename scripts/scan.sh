@@ -142,6 +142,7 @@ case "${GITHUB_EVENT_NAME:-}" in
     pr_base="$(printf '%s' "${pr}" | jq -r '.base.sha // empty')"
     pr_base_ref="$(printf '%s' "${pr}" | jq -r '.base.ref // empty')"
     pr_head_ref="$(printf '%s' "${pr}" | jq -r '.head.ref // empty')"
+    comment_id="$(jq -r '.comment.id // empty' "${GITHUB_EVENT_PATH}")"
 
     # What was asked. Everything after the mention on its line: the first word
     # is the command, the second its argument.
@@ -264,6 +265,14 @@ args=(scans launch --repo "${repository_id}" --commit "${commit}")
 [ -n "${branch}" ] && args+=(--branch "${branch}")
 [ -n "${preset}" ] && args+=(--preset "${preset}")
 [ -n "${base}" ] && args+=(--base "${base}")
+# Where this came from, so the scan page can link back here. References only:
+# zkao builds the link from the repository it is scanning.
+case "${GITHUB_EVENT_NAME:-}" in
+  issue_comment) args+=(--trigger pr_comment) ;;
+  *) args+=(--trigger github_action) ;;
+esac
+[ -n "${pr_number}" ] && args+=(--pull-request "${pr_number}")
+[ -n "${comment_id:-}" ] && args+=(--comment-id "${comment_id}")
 [ -n "${INPUT_GUIDANCE_FILE}" ] && args+=(--guidance "${INPUT_GUIDANCE_FILE}")
 if [ -n "${INPUT_AREAS}" ]; then
   IFS=',' read -r -a areas <<<"${INPUT_AREAS}"

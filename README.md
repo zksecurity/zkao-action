@@ -161,6 +161,10 @@ workflow itself runs on the default branch.
 Only the repository's owner, members and collaborators can start a scan this
 way, so a passer-by cannot spend the project's credits.
 
+The scan page links back to the pull request, and to the comment that asked for
+it. The action sends the numbers rather than a URL, so zkao builds that link
+from the repository it is scanning.
+
 The result comment carries counts and a link, never the findings themselves: on
 a public repository it would otherwise disclose unfixed vulnerabilities to
 anyone who can read the pull request.
