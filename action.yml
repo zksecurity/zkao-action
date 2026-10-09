@@ -61,9 +61,9 @@ inputs:
     required: false
     default: "true"
   mention:
-    description: "The handle a pull request comment names to reach zkao. A comment that names it with no command gets the usage back."
+    description: "What a pull request comment says to reach zkao. Slash-prefixed by default because GitHub turns an @handle into a link to whoever owns that account, and notifies them. A comment that names it with no command gets the usage back."
     required: false
-    default: "@zkao"
+    default: "/zkao"
   comment:
     description: "Comment on the pull request: once when the scan starts, and again with its result when waited for. Needs pull-requests: write and a pull request to comment on."
     required: false

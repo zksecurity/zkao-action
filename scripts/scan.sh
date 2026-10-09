@@ -97,9 +97,9 @@ usage_text() {
 
 | Command | What it does |
 | --- | --- |
-| \`${INPUT_MENTION} /scan\` | Audit this pull request's change (${INPUT_SCAN}). |
-| \`${INPUT_MENTION} /scan <kind>\` | Audit it as \`diff\`, \`quick-look\` or \`deep-audit\`. |
-| \`${INPUT_MENTION} /help\` | Show this. |
+| \`${INPUT_MENTION} scan\` | Audit this pull request's change (${INPUT_SCAN}). |
+| \`${INPUT_MENTION} scan <kind>\` | Audit it as \`diff\`, \`quick-look\` or \`deep-audit\`. |
+| \`${INPUT_MENTION} help\` | Show this. |
 
 A scan reports back here when it finishes. Only the repository's owner, members and collaborators can start one.
 EOF
@@ -153,30 +153,49 @@ case "${GITHUB_EVENT_NAME:-}" in
     set -- ${after}
     set +f
     shift || true
-    comment_command="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+    raw_command="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
     comment_arg="$(printf '%s' "${2:-}" | tr '[:upper:]' '[:lower:]')"
+    # The command may carry a leading slash or not: `/zkao scan` and
+    # `/zkao /scan` mean the same thing.
+    comment_command="${raw_command#/}"
+
+    # A slash-prefixed handle cannot appear in ordinary prose, so an unknown
+    # word after it is a typo worth answering. An @-handle can, so there an
+    # unknown word is left alone rather than answered.
+    explicit=0
+    case "${INPUT_MENTION}${raw_command}" in
+      /*) explicit=1 ;;
+    esac
 
     case "${comment_command}" in
-      /scan)
-        # An explicit kind overrides the workflow's default.
-        if [ -n "${comment_arg}" ]; then
-          INPUT_SCAN="${comment_arg}"
-        fi
+      scan)
+        # An explicit kind overrides the workflow's default. Anything else is
+        # the tail of a sentence ("/zkao scan this please"), which must not be
+        # taken for a preset: it would reach the API and fail the launch.
+        case "${comment_arg}" in
+          "") ;;
+          diff|diff-scan|quick-look|quicklook|deep-audit|deepaudit|audit|builtin:*)
+            INPUT_SCAN="${comment_arg}"
+            ;;
+          *)
+            reply "$(printf '**zkao** does not scan \`%s\`. Say \`%s scan\`, or name \`diff\`, \`quick-look\` or \`deep-audit\`.' "${comment_arg}" "${INPUT_MENTION}")"
+            exit 0
+            ;;
+        esac
         ;;
-      /help|"")
+      help|"")
         # A bare mention is a question, not an order. Answering instead of
         # scanning keeps a passing reference from spending the project's credits.
         reply "$(usage_text)"
         exit 0
         ;;
-      /*)
-        reply "$(printf '**zkao** does not know \`%s\`. Try \`%s /help\`.' "${comment_command}" "${INPUT_MENTION}")"
-        exit 0
-        ;;
       *)
-        # Prose, not an instruction: someone mentioned zkao in conversation.
-        # Saying nothing beats answering a sentence that was not addressed here.
-        echo "Mentioned without a command; nothing to do."
+        if [ "${explicit}" -eq 1 ]; then
+          reply "$(printf '**zkao** does not know \`%s\`. Try \`%s help\`.' "${comment_command}" "${INPUT_MENTION}")"
+        else
+          # Prose, not an instruction: someone named zkao in conversation.
+          echo "Mentioned without a command; nothing to do."
+        fi
         exit 0
         ;;
     esac

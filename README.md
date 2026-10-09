@@ -130,7 +130,7 @@ permissions:
 
 jobs:
   scan:
-    if: github.event.issue.pull_request && contains(github.event.comment.body, '@zkao')
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '/zkao')
     runs-on: ubuntu-latest
     steps:
       - uses: zksecurity/zkao-action@v1
@@ -144,13 +144,19 @@ jobs:
 
 | Comment | What happens |
 | --- | --- |
-| `@zkao /scan` | Audits the pull request's change, with the kind the workflow configures. |
-| `@zkao /scan deep-audit` | Audits it as `diff`, `quick-look` or `deep-audit` instead. |
-| `@zkao /help` | Posts the usage. No scan. |
-| `@zkao` | Posts the usage. Deliberately does not scan, so a passing mention never spends credits. |
+| `/zkao scan` | Audits the pull request's change, with the kind the workflow configures. |
+| `/zkao scan deep-audit` | Audits it as `diff`, `quick-look` or `deep-audit` instead. |
+| `/zkao help` | Posts the usage. No scan. |
+| `/zkao` | Posts the usage, rather than scanning. |
 
-A mention followed by ordinary prose, such as "ask @zkao about this later", is
-left alone. Change the handle with the `mention` input.
+The handle is slash-prefixed, not `@zkao`, because GitHub turns an `@handle`
+into a link to whoever owns that account and notifies them, and `zkao` belongs
+to someone else. Change it with the `mention` input; a leading slash on the
+command itself is optional, so `/zkao scan` and `/zkao /scan` are the same.
+
+Set `mention` to an `@handle` you own and it still works, except that an
+unrecognised word after it is then left alone rather than answered, since it
+may be ordinary prose.
 
 **A workflow triggered by `issue_comment` only ever runs from the repository's
 default branch.** On any other branch GitHub never dispatches it, and nothing
@@ -188,7 +194,7 @@ anyone who can read the pull request.
 | `timeout` | | `10800` | Seconds to wait in `wait` and `gate` modes before giving up. The scan keeps running on zkao. |
 | `summary` | | `true` | Write the scan link, and the findings once waited for, to the job summary. |
 | `comment` | | `false` | Comment on the pull request when the scan starts and when it finishes. Needs `pull-requests: write`. |
-| `mention` | | `@zkao` | The handle a comment names to reach zkao. |
+| `mention` | | `/zkao` | What a comment says to reach zkao. |
 | `github-token` | | the workflow's | Token used to comment, and to read the pull request on an `issue_comment` event. |
 | `base-url` | | `https://zkao.io` | The zkao instance. |
 | `cli-version` | | pinned | Version of `@zksecurity/zkao-cli` the action runs. |
