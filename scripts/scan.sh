@@ -34,7 +34,7 @@ if [ -z "${repository_id}" ]; then
   name="${GITHUB_REPOSITORY#*/}"
   # `zkao repos` returns a bare array; older CLIs wrapped it in
   # `{repositories: [...]}`. Accept either so one action serves both.
-  repos="$(zkao repos | jq '.repositories // .')"
+  repos="$(zkao repos | jq 'if type == "array" then . else .repositories end')"
   repository_id="$(
     printf '%s' "${repos}" | jq -r --arg owner "${owner}" --arg name "${name}" '
       .[]
