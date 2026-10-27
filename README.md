@@ -117,7 +117,15 @@ finds it and comments there anyway.
 
 ## Run a scan from a comment
 
-Trigger on `issue_comment` and the action takes commands from the pull request:
+zkao can answer `/zkao` commands on a pull request itself, through the zkao
+GitHub App. That needs no workflow, no token secret, and no runner waiting for
+the result. Turn it on from the repository on zkao, as described in
+[How do I scan a pull request from a comment?](https://zkao.io/docs/scans#pull-request-comments)
+Don't also run the workflow below on that repository, or each command starts
+two scans.
+
+To run comment commands from a workflow instead, trigger on `issue_comment`
+and the action takes commands from the pull request:
 
 ```yaml
 on:
