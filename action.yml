@@ -21,9 +21,9 @@ inputs:
     required: false
     default: "launch"
   scan:
-    description: "What to run: quick-look, deep-audit, diff, or any preset ref such as builtin:Deep Audit. diff audits only the change since base."
+    description: "What to run: diff, quick-look, deep-audit, or any preset ref such as builtin:Deep Audit. diff audits only the change since base."
     required: false
-    default: "quick-look"
+    default: "diff"
   base:
     description: "For scan: diff, the commit the change is measured from. Defaults to the pull request base, or the commit before the push."
     required: false

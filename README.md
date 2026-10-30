@@ -21,7 +21,7 @@ jobs:
           project: ${{ vars.ZKAO_PROJECT_ID }}
 ```
 
-That launches a quick look of every push to `main` and moves on; the
+That launches a diff scan of every push to `main` and moves on; the
 results are on zkao when the scan finishes. The scan runs at the budget zkao
 recommends for the repository, and the action needs no checkout: zkao reads
 the commit from GitHub itself.
@@ -70,9 +70,9 @@ jobs:
 
 | `scan` | Runs |
 | --- | --- |
-| `quick-look` (default) | The core techniques in one cheap pass. |
+| `diff` (default) | Only the change since `base`. Cheap and fast. |
+| `quick-look` | The core techniques in one cheap pass over an audit area. |
 | `deep-audit` | The full methodology over the whole repository. |
-| `diff` | Only the change since `base`. Cheap and fast. |
 | any preset ref | That preset, for example `builtin:Deep Audit` or a custom one. |
 
 A diff scan audits the change from the merge base of `base` to the scanned
@@ -195,7 +195,7 @@ anyone who can read the pull request.
 | `project` | yes | | The zkao project id. |
 | `budget` | | recommended | Credit budget for the scan. Defaults to zkao's recommendation for this scan type on this repository. |
 | `mode` | | `launch` | `launch`, `wait`, or `gate`. |
-| `scan` | | `quick-look` | `quick-look`, `deep-audit`, `diff`, or a preset ref. |
+| `scan` | | `diff` | `diff`, `quick-look`, `deep-audit`, or a preset ref. |
 | `base` | | see above | For `scan: diff`, the commit the change is measured from. |
 | `fail-on` | | `high` | For `mode: gate`, the severity at which open findings fail the job: `critical`, `high`, `medium`, `low`, or `info`. |
 | `repository` | | matched by name | The zkao repository id. By default the action finds the project repository whose owner and name match the workflow's repository. |
