@@ -21,11 +21,11 @@ inputs:
     required: false
     default: "launch"
   scan:
-    description: "What to run: diff, rapid-review, deep-audit, or any preset ref such as builtin:Deep Audit. diff audits only the change since base."
+    description: "What to run: flash or max audits only the change since base, on that tier. Also takes any preset ref, such as builtin:Max for the whole repository. The older diff, rapid-review and deep-audit still work."
     required: false
-    default: "diff"
+    default: "flash"
   base:
-    description: "For scan: diff, the commit the change is measured from. Defaults to the pull request base, or the commit before the push."
+    description: "For scan: flash or max, the commit the change is measured from. Defaults to the pull request base, or the commit before the push."
     required: false
     default: ""
   fail-on:
@@ -45,7 +45,7 @@ inputs:
     required: false
     default: ""
   areas:
-    description: "Comma-separated audit area keys to scope the scan to. A rapid-review of a repository that has audit areas needs exactly one; empty scans the whole repository otherwise."
+    description: "Comma-separated audit area keys to scope a scan of the code to. Empty scans the whole repository. A scan of a change takes none."
     required: false
     default: ""
   guidance-file:

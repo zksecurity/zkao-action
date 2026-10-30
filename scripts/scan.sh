@@ -98,7 +98,7 @@ usage_text() {
 | Command | What it does |
 | --- | --- |
 | \`${INPUT_MENTION} scan\` | Audit this pull request's change (${INPUT_SCAN}). |
-| \`${INPUT_MENTION} scan <kind>\` | Audit it as \`diff\`, \`rapid-review\` or \`deep-audit\`. |
+| \`${INPUT_MENTION} scan <tier>\` | Audit it as \`flash\` or \`max\`. |
 | \`${INPUT_MENTION} help\` | Show this. |
 
 A scan reports back here when it finishes. Only the repository's owner, members and collaborators can start one.
@@ -174,7 +174,7 @@ case "${GITHUB_EVENT_NAME:-}" in
         # Passing it through would reach the API as a preset ref and fail the
         # launch over a word nobody meant as one.
         case "${comment_arg}" in
-          diff|diff-scan|rapid-review|rapidreview|quick-look|quicklook|deep-audit|deepaudit|audit|builtin:*)
+          flash|max|flash-diff|max-diff|diff|diff-scan|rapid-review|rapidreview|quick-look|quicklook|deep-audit|deepaudit|audit|builtin:*)
             INPUT_SCAN="${comment_arg}"
             ;;
           "") ;;
@@ -238,21 +238,28 @@ fi
 
 
 # ---------------------------------------------------------------------------
-# Which scan. A kind name maps to its builtin preset; anything else is passed
-# through as a preset ref. A diff scan audits only the change since its base.
+# Which scan. A tier name audits the change since its base on that tier. The
+# older words keep their meaning on the nearest tier. Anything else is passed
+# through as a preset ref.
 # ---------------------------------------------------------------------------
 scan="$(printf '%s' "${INPUT_SCAN}" | tr '[:upper:]' '[:lower:]')"
 preset=""
 base=""
 case "${scan}" in
-  rapid-review|rapidreview|"rapid review"|quick-look|quicklook|"quick look") preset="builtin:Rapid Review" ;;
-  deep-audit|deepaudit|"deep audit"|audit) preset="builtin:Deep Audit" ;;
-  diff|diff-scan) preset="builtin:Diff Scan" ;;
+  flash|flash-diff|"flash diff"|diff|diff-scan) preset="builtin:Flash Diff" ;;
+  max|max-diff|"max diff") preset="builtin:Max Diff" ;;
+  rapid-review|rapidreview|"rapid review"|quick-look|quicklook|"quick look") preset="builtin:Flash" ;;
+  deep-audit|deepaudit|"deep audit"|audit) preset="builtin:Max" ;;
   "") ;;
   *) preset="${INPUT_SCAN}" ;;
 esac
 
-if [ "${preset}" = "builtin:Diff Scan" ]; then
+takes_base=0
+case "${preset}" in
+  "builtin:Flash Diff"|"builtin:Max Diff"|"builtin:Diff Scan") takes_base=1 ;;
+esac
+
+if [ "${takes_base}" -eq 1 ]; then
   base="${INPUT_BASE}"
   if [ -z "${base}" ]; then
     base="${pr_base}"

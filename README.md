@@ -21,7 +21,7 @@ jobs:
           project: ${{ vars.ZKAO_PROJECT_ID }}
 ```
 
-That launches a diff scan of every push to `main` and moves on; the
+That launches a Flash scan of the change in every push to `main` and moves on; the
 results are on zkao when the scan finishes. The scan runs at the budget zkao
 recommends for the repository, and the action needs no checkout: zkao reads
 the commit from GitHub itself.
@@ -59,7 +59,7 @@ jobs:
         with:
           token: ${{ secrets.ZKAO_API_TOKEN }}
           project: ${{ vars.ZKAO_PROJECT_ID }}
-          scan: diff
+          scan: flash
           mode: gate
           fail-on: high
 ```
@@ -70,12 +70,14 @@ jobs:
 
 | `scan` | Runs |
 | --- | --- |
-| `diff` (default) | Only the change since `base`. Cheap and fast. |
-| `rapid-review` | The core techniques in one cheap pass over an audit area. `quick-look` still works. |
-| `deep-audit` | The full methodology over the whole repository. |
-| any preset ref | That preset, for example `builtin:Deep Audit` or a custom one. |
+| `flash` (default) | Only the change since `base`, with fewer techniques on a flash model. Cheap and fast. |
+| `max` | Only the change since `base`, with every technique on flagship models. |
+| any preset ref | That preset, for example `builtin:Max` for the whole repository, or a custom one. |
 
-A diff scan audits the change from the merge base of `base` to the scanned
+The older words still work. `diff` runs `flash`. `rapid-review` and
+`quick-look` run `builtin:Flash`. `deep-audit` runs `builtin:Max`.
+
+`flash` and `max` audit the change from the merge base of `base` to the scanned
 commit. `base` defaults to the pull request's base, or the commit before a push.
 The rest of the repository is context, not a target. On a pull request it scans
 against the branch the change will land on, so repeat scans of the same target
@@ -103,7 +105,7 @@ jobs:
         with:
           token: ${{ secrets.ZKAO_API_TOKEN }}
           project: ${{ vars.ZKAO_PROJECT_ID }}
-          scan: diff
+          scan: flash
           mode: wait
           comment: true
 ```
@@ -145,7 +147,7 @@ jobs:
         with:
           token: ${{ secrets.ZKAO_API_TOKEN }}
           project: ${{ vars.ZKAO_PROJECT_ID }}
-          scan: diff
+          scan: flash
           mode: wait
           comment: true
 ```
@@ -153,7 +155,7 @@ jobs:
 | Comment | What happens |
 | --- | --- |
 | `/zkao scan` | Audits the pull request's change, with the kind the workflow configures. |
-| `/zkao scan deep-audit` | Audits it as `diff`, `rapid-review` or `deep-audit` instead. |
+| `/zkao scan max` | Audits it as `flash` or `max` instead. |
 | `/zkao help` | Posts the usage. No scan. |
 | `/zkao` | Posts the usage, rather than scanning. |
 
@@ -195,13 +197,13 @@ anyone who can read the pull request.
 | `project` | yes | | The zkao project id. |
 | `budget` | | recommended | Credit budget for the scan. Defaults to zkao's recommendation for this scan type on this repository. |
 | `mode` | | `launch` | `launch`, `wait`, or `gate`. |
-| `scan` | | `diff` | `diff`, `rapid-review`, `deep-audit`, or a preset ref. |
-| `base` | | see above | For `scan: diff`, the commit the change is measured from. |
+| `scan` | | `flash` | `flash`, `max`, or a preset ref. |
+| `base` | | see above | For `scan: flash` or `scan: max`, the commit the change is measured from. |
 | `fail-on` | | `high` | For `mode: gate`, the severity at which open findings fail the job: `critical`, `high`, `medium`, `low`, or `info`. |
 | `repository` | | matched by name | The zkao repository id. By default the action finds the project repository whose owner and name match the workflow's repository. |
 | `commit` | | see below | Commit to scan. |
 | `branch` | | workflow branch | Branch the commit is on. Lets the scan reuse the branch's repository map. |
-| `areas` | | whole repository | Comma-separated audit area keys to scope the scan to. A `rapid-review` of a repository with audit areas needs exactly one. |
+| `areas` | | whole repository | Comma-separated audit area keys to scope a scan of the code to. A scan of a change takes none. |
 | `guidance-file` | | | A file whose content replaces the repository's guidance for this scan. |
 | `timeout` | | `10800` | Seconds to wait in `wait` and `gate` modes before giving up. The scan keeps running on zkao. |
 | `summary` | | `true` | Write the scan link, and the findings once waited for, to the job summary. |
@@ -241,7 +243,7 @@ Use them in later steps:
 ## Keeping the cost in check
 
 A scan of the whole repository on every push adds up. Run on `pull_request`
-or on `main` only, gate the job on the paths that matter, use `scan: diff`
+or on `main` only, gate the job on the paths that matter, use `scan: flash`
 for pull requests, or pass `areas` to scan the audit areas a change touches.
 Area keys come from the repository's Context tab on zkao, or from
 `zkao areas list`.
