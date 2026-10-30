@@ -21,7 +21,7 @@ inputs:
     required: false
     default: "launch"
   scan:
-    description: "What to run: diff, quick-look, deep-audit, or any preset ref such as builtin:Deep Audit. diff audits only the change since base."
+    description: "What to run: diff, rapid-review, deep-audit, or any preset ref such as builtin:Deep Audit. diff audits only the change since base."
     required: false
     default: "diff"
   base:
@@ -45,7 +45,7 @@ inputs:
     required: false
     default: ""
   areas:
-    description: "Comma-separated audit area keys to scope the scan to. A quick-look of a repository that has audit areas needs exactly one; empty scans the whole repository otherwise."
+    description: "Comma-separated audit area keys to scope the scan to. A rapid-review of a repository that has audit areas needs exactly one; empty scans the whole repository otherwise."
     required: false
     default: ""
   guidance-file:

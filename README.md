@@ -71,7 +71,7 @@ jobs:
 | `scan` | Runs |
 | --- | --- |
 | `diff` (default) | Only the change since `base`. Cheap and fast. |
-| `quick-look` | The core techniques in one cheap pass over an audit area. |
+| `rapid-review` | The core techniques in one cheap pass over an audit area. `quick-look` still works. |
 | `deep-audit` | The full methodology over the whole repository. |
 | any preset ref | That preset, for example `builtin:Deep Audit` or a custom one. |
 
@@ -153,7 +153,7 @@ jobs:
 | Comment | What happens |
 | --- | --- |
 | `/zkao scan` | Audits the pull request's change, with the kind the workflow configures. |
-| `/zkao scan deep-audit` | Audits it as `diff`, `quick-look` or `deep-audit` instead. |
+| `/zkao scan deep-audit` | Audits it as `diff`, `rapid-review` or `deep-audit` instead. |
 | `/zkao help` | Posts the usage. No scan. |
 | `/zkao` | Posts the usage, rather than scanning. |
 
@@ -195,13 +195,13 @@ anyone who can read the pull request.
 | `project` | yes | | The zkao project id. |
 | `budget` | | recommended | Credit budget for the scan. Defaults to zkao's recommendation for this scan type on this repository. |
 | `mode` | | `launch` | `launch`, `wait`, or `gate`. |
-| `scan` | | `diff` | `diff`, `quick-look`, `deep-audit`, or a preset ref. |
+| `scan` | | `diff` | `diff`, `rapid-review`, `deep-audit`, or a preset ref. |
 | `base` | | see above | For `scan: diff`, the commit the change is measured from. |
 | `fail-on` | | `high` | For `mode: gate`, the severity at which open findings fail the job: `critical`, `high`, `medium`, `low`, or `info`. |
 | `repository` | | matched by name | The zkao repository id. By default the action finds the project repository whose owner and name match the workflow's repository. |
 | `commit` | | see below | Commit to scan. |
 | `branch` | | workflow branch | Branch the commit is on. Lets the scan reuse the branch's repository map. |
-| `areas` | | whole repository | Comma-separated audit area keys to scope the scan to. A `quick-look` of a repository with audit areas needs exactly one. |
+| `areas` | | whole repository | Comma-separated audit area keys to scope the scan to. A `rapid-review` of a repository with audit areas needs exactly one. |
 | `guidance-file` | | | A file whose content replaces the repository's guidance for this scan. |
 | `timeout` | | `10800` | Seconds to wait in `wait` and `gate` modes before giving up. The scan keeps running on zkao. |
 | `summary` | | `true` | Write the scan link, and the findings once waited for, to the job summary. |

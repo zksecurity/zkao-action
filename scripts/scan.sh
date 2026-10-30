@@ -98,7 +98,7 @@ usage_text() {
 | Command | What it does |
 | --- | --- |
 | \`${INPUT_MENTION} scan\` | Audit this pull request's change (${INPUT_SCAN}). |
-| \`${INPUT_MENTION} scan <kind>\` | Audit it as \`diff\`, \`quick-look\` or \`deep-audit\`. |
+| \`${INPUT_MENTION} scan <kind>\` | Audit it as \`diff\`, \`rapid-review\` or \`deep-audit\`. |
 | \`${INPUT_MENTION} help\` | Show this. |
 
 A scan reports back here when it finishes. Only the repository's owner, members and collaborators can start one.
@@ -174,7 +174,7 @@ case "${GITHUB_EVENT_NAME:-}" in
         # Passing it through would reach the API as a preset ref and fail the
         # launch over a word nobody meant as one.
         case "${comment_arg}" in
-          diff|diff-scan|quick-look|quicklook|deep-audit|deepaudit|audit|builtin:*)
+          diff|diff-scan|rapid-review|rapidreview|quick-look|quicklook|deep-audit|deepaudit|audit|builtin:*)
             INPUT_SCAN="${comment_arg}"
             ;;
           "") ;;
@@ -245,7 +245,7 @@ scan="$(printf '%s' "${INPUT_SCAN}" | tr '[:upper:]' '[:lower:]')"
 preset=""
 base=""
 case "${scan}" in
-  quick-look|quicklook|"quick look") preset="builtin:Quick Look" ;;
+  rapid-review|rapidreview|"rapid review"|quick-look|quicklook|"quick look") preset="builtin:Rapid Review" ;;
   deep-audit|deepaudit|"deep audit"|audit) preset="builtin:Deep Audit" ;;
   diff|diff-scan) preset="builtin:Diff Scan" ;;
   "") ;;
