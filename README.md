@@ -201,7 +201,7 @@ anyone who can read the pull request.
 | `repository` | | matched by name | The zkao repository id. By default the action finds the project repository whose owner and name match the workflow's repository. |
 | `commit` | | see below | Commit to scan. |
 | `branch` | | workflow branch | Branch the commit is on. Lets the scan reuse the branch's repository map. |
-| `areas` | | whole repository | Comma-separated audit area keys to scope the scan to. |
+| `areas` | | whole repository | Comma-separated audit area keys to scope the scan to. A `quick-look` of a repository with audit areas needs exactly one. |
 | `guidance-file` | | | A file whose content replaces the repository's guidance for this scan. |
 | `timeout` | | `10800` | Seconds to wait in `wait` and `gate` modes before giving up. The scan keeps running on zkao. |
 | `summary` | | `true` | Write the scan link, and the findings once waited for, to the job summary. |

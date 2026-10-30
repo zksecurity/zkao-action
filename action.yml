@@ -45,7 +45,7 @@ inputs:
     required: false
     default: ""
   areas:
-    description: "Comma-separated audit area keys to scope the scan to. Empty scans the whole repository."
+    description: "Comma-separated audit area keys to scope the scan to. A quick-look of a repository that has audit areas needs exactly one; empty scans the whole repository otherwise."
     required: false
     default: ""
   guidance-file:
