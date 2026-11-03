@@ -21,7 +21,8 @@ fail() {
 }
 
 case "${INPUT_MODE}" in
-  launch|wait|gate) ;;
+  launch) scan_followup="Follow the scan link for results." ;;
+  wait|gate) scan_followup="Results will follow here." ;;
   *) fail "Unknown mode '${INPUT_MODE}'. Use launch, wait, or gate." ;;
 esac
 
@@ -101,7 +102,7 @@ usage_text() {
 | \`${INPUT_MENTION} scan <tier>\` | Audit it as \`flash\` or \`max\`. |
 | \`${INPUT_MENTION} help\` | Show this. |
 
-A scan reports back here when it finishes. Only the repository's owner, members and collaborators can start one.
+${scan_followup} Only the repository's owner, members and collaborators can start a scan.
 EOF
 }
 
@@ -322,8 +323,8 @@ label="${scan:-scan}"
 } >>"${GITHUB_OUTPUT}"
 echo "Launched ${label} ${scan_id} of ${commit:0:12}${budget:+ with a budget of ${budget} credits}: ${scan_url}"
 
-post_comment "$(printf '**zkao** is scanning `%s` ([%s](%s)).\n\nResults will follow here.' \
-  "${commit:0:12}" "${label}" "${scan_url}")"
+post_comment "$(printf '**zkao** is scanning `%s` ([%s](%s)).\n\n%s' \
+  "${commit:0:12}" "${label}" "${scan_url}" "${scan_followup}")"
 
 if [ "${INPUT_MODE}" = "launch" ]; then
   echo "status=QUEUED" >>"${GITHUB_OUTPUT}"

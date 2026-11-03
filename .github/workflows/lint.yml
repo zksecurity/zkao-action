@@ -8,6 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Test scan comments
+        run: bash scripts/test.sh
       - name: shellcheck
         run: shellcheck scripts/*.sh
       - name: actionlint
