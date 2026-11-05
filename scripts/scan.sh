@@ -313,6 +313,11 @@ launched="$(zkao "${args[@]}")"
 scan_id="$(printf '%s' "${launched}" | jq -r '.scanId // empty')"
 [ -n "${scan_id}" ] || fail "The launch returned no scan id: ${launched}"
 budget="$(printf '%s' "${launched}" | jq -r '.creditBudget // empty')"
+overview_note=""
+if [ "$(printf '%s' "${launched}" | jq -r '.buildsOverview // false')" = "true" ]; then
+  overview_note="No earlier scan of this repository built its overview, so this scan builds one first. It takes longer and needs a bigger budget."
+  echo "::notice::${overview_note}"
+fi
 scan_url="${INPUT_BASE_URL%/}/projects/${ZKAO_PROJECT_ID}/scans/${scan_id}"
 label="${scan:-scan}"
 [ -n "${base}" ] && label="diff scan since ${base:0:12}"
@@ -323,8 +328,8 @@ label="${scan:-scan}"
 } >>"${GITHUB_OUTPUT}"
 echo "Launched ${label} ${scan_id} of ${commit:0:12}${budget:+ with a budget of ${budget} credits}: ${scan_url}"
 
-post_comment "$(printf '**zkao** is scanning `%s` ([%s](%s)).\n\n%s' \
-  "${commit:0:12}" "${label}" "${scan_url}" "${scan_followup}")"
+post_comment "$(printf '**zkao** is scanning `%s` ([%s](%s)).\n\n%s%s' \
+  "${commit:0:12}" "${label}" "${scan_url}" "${overview_note:+${overview_note} }" "${scan_followup}")"
 
 if [ "${INPUT_MODE}" = "launch" ]; then
   echo "status=QUEUED" >>"${GITHUB_OUTPUT}"

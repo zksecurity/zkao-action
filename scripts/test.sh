@@ -11,7 +11,7 @@ cat >"$test_dir/bin/npx" <<'MOCK'
 set -euo pipefail
 printf '%s\n' "$*" >>"$ACTION_TEST_DIR/cli.log"
 case "$3 $4" in
-  'scans launch') printf '%s\n' '{"scanId":"scan-1","creditBudget":1000}' ;;
+  'scans launch') printf '%s\n' '{"scanId":"scan-1","creditBudget":1000,"buildsOverview":true}' ;;
   'scans wait') printf '%s\n' '{"status":"COMPLETED"}' ;;
   'findings list') printf '%s\n' '{"items":[],"total":0}' ;;
   *) echo "Unexpected CLI invocation: $*" >&2; exit 1 ;;
@@ -42,6 +42,8 @@ for mode in launch wait gate; do
     GITHUB_STEP_SUMMARY="$run_dir/summary" \
     bash "$script_dir/scan.sh" >"$run_dir/stdout" || exit 1
   first_comment="$(head -n 1 "$run_dir/comments.jsonl" | jq -r .body)"
+  [[ "$first_comment" == *'so this scan builds one first.'* ]] || exit 1
+  grep -q '^::notice::No earlier scan' "$run_dir/stdout" || exit 1
   if [ "$mode" = launch ]; then
     [[ "$first_comment" == *'Follow the scan link for results.'* ]] || exit 1
     [[ "$first_comment" != *'Results will follow here.'* ]] || exit 1
