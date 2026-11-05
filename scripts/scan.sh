@@ -309,7 +309,17 @@ if [ -n "${INPUT_AREAS}" ]; then
   done
 fi
 
-launched="$(zkao "${args[@]}")"
+launch_error="$(mktemp)"
+if ! launched="$(zkao "${args[@]}" 2>"${launch_error}")"; then
+  message="$(tail -n 1 "${launch_error}")"
+  case "${message}" in
+    *"(budget_below_minimum)"*)
+      fail "${message#*): } Raise the budget input to at least that, or leave it out to use the recommended budget."
+      ;;
+    *) fail "The scan could not launch: ${message:-the zkao CLI failed}" ;;
+  esac
+fi
+cat "${launch_error}" >&2
 scan_id="$(printf '%s' "${launched}" | jq -r '.scanId // empty')"
 [ -n "${scan_id}" ] || fail "The launch returned no scan id: ${launched}"
 budget="$(printf '%s' "${launched}" | jq -r '.creditBudget // empty')"

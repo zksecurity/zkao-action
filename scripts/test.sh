@@ -56,3 +56,27 @@ for mode in launch wait gate; do
   fi
   printf 'PASS %s comment lifecycle\n' "$mode"
 done
+
+# A budget below the minimum fails the job with the minimum and what to do.
+cat >"$test_dir/bin/npx" <<'MOCK'
+#!/usr/bin/env bash
+echo "Error 400 (budget_below_minimum): This scan requires a minimum budget of 1,929 credits. No earlier scan of this repository built its overview, so this scan builds one first." >&2
+exit 1
+MOCK
+run_dir="$test_dir/below-minimum"
+mkdir "$run_dir"
+if env PATH="$test_dir/bin:$PATH" ACTION_TEST_DIR="$run_dir" \
+  INPUT_MODE=launch INPUT_REPOSITORY="repo-1" INPUT_CLI_VERSION="test" \
+  INPUT_COMMENT="false" INPUT_GITHUB_TOKEN="fake" INPUT_MENTION="/zkao" \
+  INPUT_COMMIT="" INPUT_BRANCH="" INPUT_SCAN="flash" INPUT_BASE="" \
+  INPUT_BUDGET="1000" INPUT_GUIDANCE_FILE="" INPUT_AREAS="" \
+  INPUT_BASE_URL="https://zkao.example" INPUT_SUMMARY="false" \
+  INPUT_TIMEOUT="1" INPUT_FAIL_ON="high" ZKAO_PROJECT_ID="project-1" \
+  GITHUB_EVENT_NAME="pull_request" GITHUB_EVENT_PATH="$test_dir/event.json" \
+  GITHUB_REPOSITORY="owner/repo" GITHUB_OUTPUT="$run_dir/output" \
+  GITHUB_STEP_SUMMARY="$run_dir/summary" \
+  bash "$script_dir/scan.sh" >"$run_dir/stdout" 2>&1; then
+  exit 1
+fi
+grep -q '^::error::This scan requires a minimum budget of 1,929 credits\..*Raise the budget input to at least that' "$run_dir/stdout" || exit 1
+printf 'PASS budget below the minimum\n'
