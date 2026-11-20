@@ -77,9 +77,9 @@ inputs:
     required: false
     default: "https://zkao.io"
   cli-version:
-    description: "Version of the @zksecurity/zkao-cli package the action runs. Branch staging runs the CLI's next channel, which tracks staging."
+    description: "Version of the @zksecurity/zkao-cli package the action runs. Releases pin the CLI built from the SDK's main branch; branch staging runs the CLI's next channel."
     required: false
-    default: "next"
+    default: "0.36.0-next.24"
 
 outputs:
   scan-id:
